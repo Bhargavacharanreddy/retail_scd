@@ -200,3 +200,5 @@ In pgAdmin, execute:
 SELECT * FROM public.customers_type0;
 ```
   Expected Outcome: The customer_name for customer_id = 1 should remain as 'Alice Doe', demonstrating that Type 0 SCD retains the original data.
+
+---
