@@ -2,6 +2,25 @@
 
 #### This project demonstrates the implementation and testing of various Slowly Changing Dimension (SCD) types using PostgreSQL, pgAdmin, and dbt on macOS.
 ---
+**Slowly Changing Dimensions (SCD) Types**
+
+Slowly Changing Dimensions (SCD) are techniques used in data warehousing to manage and track changes in dimension data over time. They ensure that historical data is accurately preserved, which is crucial for effective analysis and reporting. The primary SCD types include:​
+
+- Type 0 (Retain Original): This method retains the original data without any changes, even if there are updates in the source system. It's suitable when historical accuracy is paramount, and changes are not expected or should be ignored.​
+
+- Type 1 (Overwrite): In this approach, existing data is overwritten with new data, and no historical data is preserved. It's useful when corrections are needed, and historical accuracy is not required.​
+
+- Type 2 (Add New Row): This technique adds a new row for each change, preserving the historical data by assigning a new surrogate key or using effective date ranges. It's commonly used when a full history of data changes is necessary.​
+
+- Type 3 (Add New Attribute): Here, a new column is added to store the previous value of a changing attribute. This method tracks limited history and is useful when only the previous value needs to be retained.​
+
+- Type 4 (Add History Table): This approach involves maintaining a separate history table to track changes, while the main dimension table holds only the current data. It's beneficial when changes are infrequent but historical data is still important.​
+
+- Type 5 (Mini-Dimension with Type 1 Outrigger): This method combines a mini-dimension (Type 4) with a Type 1 reference (outrigger) to the mini-dimension in the base dimension table. It allows for accurate preservation of historical attribute values while enabling reporting of historical facts according to current attribute values. ​
+
+- Type 6 (Hybrid Approach): Also known as a hybrid approach, this method combines techniques from Types 1, 2, and 3 to provide a comprehensive solution for tracking changes, capturing both current and historical data efficiently.
+
+---
 ## Table of Contents
 1. Project Overview
 2. Architecture Diagram
