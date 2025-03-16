@@ -23,28 +23,23 @@ Slowly Changing Dimensions (SCD) are techniques used in data warehousing to mana
 ---
 ## Table of Contents
 1. Project Overview
-2. Architecture Diagram
-3. Prerequisites
-4. Setup Instructions
-    1. Install PostgreSQL and pgAdmin
-    2. Install Python and dbt
-    3. Configure dbt
-5. Project Structure
-6. Initial Data Setup
-7. SCD Type 0 Implementation
-   - Step 1: Create dbt Model
-   - Step 2: Run Initial Load
-   - Step 3: Validate Initial Data
-   - Step 4: Simulate Data Update
-   - Step 5: Run Incremental Load
-   - Step 6: Validate Post-Update Data
+2. Prerequisites
+3. Setup Instructions
+   - Install PostgreSQL and pgAdmin
+   - Install Python and dbt
+   - Configure dbt
+4. Project Structure
+5. Initial Data Setup
+6. SCD Type 0 Implementation
+7. SCD Type 1 Implementation (Overwrite)
+8. SCD Type 2 Implementation (Historical Tracking)
 
 --- 
 ### Project Overview
 The goal of this project is to practice and validate different Slowly Changing Dimension (SCD) types to manage and track changes in dimensional data over time. This is crucial for maintaining historical accuracy in data warehousing and business intelligence applications.
 
 
-### Architecture Diagram
+
 
 
 ### Prerequisites
@@ -131,19 +126,22 @@ Before you begin, ensure you have the following installed on your macOS system:
 
 ```
 retail_scd/
-├── analysis/
-├── macros/
-├── models/
-│   ├── dimensions/
-│   │   └── customers_type0.sql
-│   └── sources.yml
-├── seeds/
-│   └── customers.csv
-├── snapshots/
-│   └── .gitkeep
+.
 ├── README.md
+├── analysis
 ├── dbt_project.yml
-└── packages.yml
+├── logs
+│   └── dbt.log
+├── macros
+├── models
+│   ├── dimensions
+│   │   ├── customers_type0.sql
+│   │   └── customers_type1.sql
+│   └── sources.yml
+├── seeds
+│   └── customers.csv
+├── snapshots
+│   └── customers_snapshot.sql
 ```
 
 ### Initial Data Setup
@@ -169,7 +167,7 @@ Create and Populate customers Table:
 ```
 
 ### SCD Type 0 Implementation
-- **Step 1: Create dbt Model**
+- **Create dbt Model**
     Create a file at models/dimensions/customers_type0.sql with the following content:
 
 ```sql
@@ -188,12 +186,12 @@ FROM {{ source('public', 'customers') }}
 WHERE customer_id NOT IN (SELECT customer_id FROM {{ this }})
 {% endif %}
 ```
-- **Step 2: Run Initial Load**
+- **Run Initial Load**
 ```shell
 dbt run --models customers_type0 --full-refresh
 ```
 
-- **Step 3: Validate Initial Data**
+- **Validate Initial Data**
 In pgAdmin, execute:
 
 ```sql
@@ -201,18 +199,18 @@ SELECT * FROM public.customers_type0;
 ```
 Verify that the data matches the initial customers table.
 
-- **Step 4: Simulate Data Update**
+- **Simulate Data Update**
 ```sql
 UPDATE public.customers
 SET customer_name = 'Updated Alice Doe'
 WHERE customer_id = 1;
 ```
-- **Step 5: Run Incremental Load**
+- **Run Incremental Load**
 ```
 dbt run --models customers_type0
 ```
 
-- **Step 6: Validate Post-Update Data**
+- **Validate Post-Update Data**
 In pgAdmin, execute:
 
 ```sql
@@ -221,3 +219,117 @@ SELECT * FROM public.customers_type0;
   Expected Outcome: The customer_name for customer_id = 1 should remain as 'Alice Doe', demonstrating that Type 0 SCD retains the original data.
 
 ---
+
+### SCD Type 1 Implementation
+
+- **create dbt model**
+    ```
+    {{ config(materialized='table') }}
+    
+    SELECT
+        customer_id,
+        customer_name,
+        membership_status,
+        original_membership_status,
+        start_date,
+        current_flag,
+        last_updated
+    FROM public.customers
+    ```
+- **Initial Run**
+
+    ```
+    dbt run --models customers_type1 --full-refresh
+    ```
+
+- **Validate Initial Data**
+
+    ```sql
+    SELECT * FROM public.customers_type1;
+    ```
+
+- **Simulate Data Update**
+
+    ```sql
+    UPDATE public.customers
+    SET membership_status = 'Gold'
+    WHERE customer_id = 1;
+    ```
+
+- **Run Incremental Load**
+
+    ```
+    dbt run --models customers_type1
+    ```
+
+- **Validate**
+
+    ```sql
+    SELECT * FROM public.customers_type1;
+    ```
+
+    Validation: membership_status for customer_id=1 should be updated.
+
+---
+
+### SCD Type 2 Implementation (Historical Tracking)
+
+   Clearly preserves historical data by inserting new rows.
+
+
+- **Create Snapshot (snapshots/customers_snapshot.sql)**
+    ```
+    {% snapshot customers_snapshot %}
+    {{
+        config(
+            target_schema='snapshots',
+            unique_key='customer_id',
+            strategy='check',
+            check_cols=['customer_name', 'membership_status']
+        )
+    }}
+    
+    SELECT
+        customer_id,
+        customer_name,
+        membership_status,
+        original_membership_status,
+        start_date,
+        current_flag,
+        last_updated
+    FROM public.customers
+    {% endsnapshot %}
+    ```
+    
+- **Run Initial Snapshot**
+    ```
+    dbt snapshot
+    ```
+
+- **Validate Initial Data**
+    ```sql
+    SELECT * FROM snapshots.customers_snapshot;
+    ```
+- **Simulate Data Change**
+    ```sql
+    UPDATE public.customers
+    SET customer_name = 'Alice Johnson'
+    WHERE customer_id = 1;
+    ```
+- **Run Snapshot again**
+    ```
+    dbt snapshot
+    ```
+- **Validate Historical Data**
+    ```sql
+    SELECT
+        customer_id,
+        customer_name,
+        membership_status,
+        dbt_valid_from,
+        dbt_valid_to
+    FROM snapshots.customers_snapshot
+    WHERE customer_id = 1
+    ORDER BY dbt_valid_from;
+    ```
+    Expected: Two rows with historical and current values clearly defined.
